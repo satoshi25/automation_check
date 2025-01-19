@@ -210,7 +210,7 @@ def add_order_sheet(df, order):
             str(order.get('quantity', '')),
             str(order.get('service_name', '')),
             str(order.get('order_time', '')),
-            "주문완료",
+            "배송중",
         ]
         df.append_row(row_data)
         print(f"주문 정보가 시트에 추가되었습니다: {row_data}")
@@ -219,6 +219,70 @@ def add_order_sheet(df, order):
     except Exception as e:
         print(f"시트 추가 중 오류 발생: {str(e)}")
         traceback.print_exc()
+
+def add_manual_order_sheet(sheet, order):
+    print('manual_order 입력')
+    try:
+        row_data = [
+            str(order.get('market_order_num', '')),
+            str(order.get('store_order_num', '').get('order')),
+            str(order.get('order_username', '')),
+            str(order.get('service_num', '')),
+            str(order.get('order_link', '')),
+            str(order.get('order_edit_link', '')),
+            str(order.get('quantity', '')),
+            str(order.get('service_name', '')),
+            str(order.get('order_time', '')),
+            "처리필요",
+            str(order.get('note', '')),
+        ]
+
+        if len(row_data) != 11:  # 컬럼 수와 일치하는지 확인
+            raise ValueError(f"Expected 11 columns, got {len(row_data)}")
+        
+        sheet.append_row(row_data)
+        print(f"수동주문 정보가 시트에 추가되었습니다: {row_data}")
+        return order
+
+    
+    except Exception as e:
+        print(f"시트 추가 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+
+def alert_manual_orders(hook_url, sheet_manager, orders):
+
+    df = sheet_manager.get_sheet_data('manual_order_list')
+
+    for order in orders:
+        order_num = order.get("market_order_num")
+        user_info = order.get("order_username").split('\n')
+        username = user_info[0]
+        user_id = user_info[2]
+        order_time = order.get("order_time").split('\n')[1].replace("(", '').replace(")", '')
+        order_service = order.get("service_name")
+
+        filtered_manual = df[
+            (df['처리상태'] == '처리필요') &  
+            (df['마켓주문번호'] == order_num) 
+        ]
+
+        if len(filtered_manual) > 0:
+            payload = {
+                "order_num": order_num,
+                "user_id": user_id,
+                "username": username,
+                "order_time": order_time,
+                "order_service": order_service,
+            }
+
+            response = requests.post(url=hook_url, json=payload)
+            print("응답 상태 코드:", response.status_code)
+            print("응답 본문:", response.text)
+            print('알람완료')
+        else:
+            print("알릴 주문이 아닙니다.")
+    print('모든 알림 완료')
+    return 
 
 # 1. Selenium WebDriver 설정
 def init_driver():
@@ -309,6 +373,7 @@ def scrape_orders(driver, shipping_order_page, wait):
 
 async def check_order(orders, shipping_orders, store_api):
     processed_orders = []
+    manual_process_orders = []
     for order in orders:
         try:
             market_order_num = order.get('market_order_num')
@@ -321,35 +386,52 @@ async def check_order(orders, shipping_orders, store_api):
             if order_cnt == 1:
                 complete_cnt = 0
                 store_order_num = filtered_orders.iloc[0]['스토어주문번호']
+                market_order_sheet_num = filtered_orders.iloc[0]['마켓주문번호']
                 response = store_api.get_order_status(store_order_num)
+                order["market_order_num"] = market_order_sheet_num
                 if response.get('status') == 'Completed':
                     complete_cnt += 1
                     print()
                     print('완료된 주문')
-                    print(f"{store_order_num} - {filtered_orders.iloc[0]['마켓주문번호']}", response.get("status"))
+                    print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
+                    print()
+                elif response.get('status') == 'Partial' or response.get('status') == 'Canceled':
+                    manual_order = shipping_orders[shipping_orders['마켓주문번호'] == order['market_order_num']]
+                    manual_process_orders.append(manual_order)
+                    print()
+                    print('수동처리가 필요한 주문')
+                    print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
                     print()
                 else:
                     print()
                     print('완료되지 않은 주문')
-                    print(f"{store_order_num} - {filtered_orders.iloc[0]['마켓주문번호']}", response.get("status"))
+                    print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
                     print()
             else:
                 complete_cnt = 0
                 for i in range(order_cnt):
                     store_order_num = filtered_orders.iloc[i]['스토어주문번호']
+                    market_order_sheet_num = filtered_orders.iloc[i]['마켓주문번호']
                     response = store_api.get_order_status(store_order_num)
+                    order["market_order_num"] = market_order_sheet_num
                     if response.get('status') == 'Completed':
                         complete_cnt += 1
                         print()
                         print('완료된 주문')
-                        print(f"{store_order_num} - {filtered_orders.iloc[i]['마켓주문번호']}", response.get("status"))
+                        print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
+                        print()
+                    elif response.get('status') == 'Partial' or response.get('status') == 'Canceled':
+                        manual_order = shipping_orders[shipping_orders['마켓주문번호'] == order['market_order_num']]
+                        manual_process_orders.append(manual_order)
+                        print()
+                        print('수동처리가 필요한 주문')
+                        print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
                         print()
                     else:
                         print()
                         print('완료되지 않은 주문')
-                        print(f"{store_order_num} - {filtered_orders.iloc[i]['마켓주문번호']}", response.get("status"))
+                        print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
                         print()
-                        break
 
             if complete_cnt == order_cnt:
                 is_all_complete = True
@@ -364,8 +446,9 @@ async def check_order(orders, shipping_orders, store_api):
     print('-------------------------------')
     print(f"진행중인 전체 주문 수: {len(orders)}")
     print(f"완료된 주문 수: {len(processed_orders)}")
+    print(f"수동처리 필요한 주문 수: {len(manual_process_orders)}")
     print('-------------------------------')
-    return processed_orders
+    return [processed_orders, manual_process_orders]
 
 def process_orders(shipping_order_sheets, orders):
     try:
@@ -424,11 +507,11 @@ async def main():
     sheet_manager = GoogleSheetManager()
     # service_worksheets = sheet_manager.get_worksheet('market_service_list')
     shipping_order_worksheets = sheet_manager.get_worksheet('market_store_order_list')
-    # manual_order_worksheets = sheet_manager.get_worksheet('manual_order_list')
+    manual_order_worksheets = sheet_manager.get_worksheet('manual_order_list')
 
     # service_sheet_data = sheet_manager.get_sheet_data('market_service_list')
     shipping_order_data = sheet_manager.get_sheet_data('market_store_order_list')
-    # manual_order_sheet_data = sheet_manager.get_sheet_data('manual_order_list')
+    manual_order_sheet_data = sheet_manager.get_sheet_data('manual_order_list')
 
     store_api = StoreAPI(store_api_key)
 
@@ -437,12 +520,12 @@ async def main():
         order_list = scrape_orders(driver, shipping_page, wait)
         orders, shipping_complete_element = order_list
 
-        processed_orders = await check_order(orders, shipping_order_data, store_api)
+        check_orders = await check_order(orders, shipping_order_data, store_api)
 
+        processed_orders, manual_orders = check_orders
         print('-------------------------------')
         print('완료된 주문목록', processed_orders)
-        print('-------------------------------')
-
+        print('-------------------------------')   
         if len(processed_orders) > 0:
             check_orders = process_orders(shipping_order_worksheets, processed_orders)
             process_eship(driver, check_orders, shipping_complete_element, alert, wait)
