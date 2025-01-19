@@ -513,7 +513,9 @@ async def main():
         processed_orders, manual_orders = check_orders
         print('-------------------------------')
         print('완료된 주문목록', processed_orders)
-        print('-------------------------------')   
+        print('-------------------------------')
+        if len(manual_orders) > 0:
+            process_manual_order(manual_order_worksheets, manual_orders)
         if len(processed_orders) > 0:
             check_orders = process_orders(shipping_order_worksheets, processed_orders)
             process_eship(driver, check_orders, shipping_complete_element, alert, wait)
