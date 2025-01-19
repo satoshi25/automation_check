@@ -527,6 +527,7 @@ async def main():
         return processed_orders
     except Exception as e:
         print(f"Error: {e}")
+        traceback.print_exc()
         return []
     finally:
         print('완료')
