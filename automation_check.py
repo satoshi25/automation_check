@@ -94,13 +94,14 @@ class GoogleSheetManager:
             print(f"시트 데이터 가져오기 실패: {e}")
             raise
 
-sheet_manager = GoogleSheetManager()
+# sheet_manager = GoogleSheetManager()
+# service_worksheets = sheet_manager.get_worksheet('market_service_list')
+# order_worksheets = sheet_manager.get_worksheet('market_store_order_list')
+# manual_order_worksheets = sheet_manager.get_worksheet('manual_order_list')
 
-service_sheets = sheet_manager.get_worksheet('market_service_list')
-order_sheets = sheet_manager.get_worksheet('market_store_order_list')
-manual_order_sheets = sheet_manager.get_worksheet('manual_order_list')
-
-service_sheet = sheet_manager.get_sheet_data('market_service_list')
+# service_sheet_data = sheet_manager.get_sheet_data('market_service_list')
+# order_sheet_data = sheet_manager.get_sheet_data('market_store_order_list')
+# manual_order_sheet_data = sheet_manager.get_sheet_data('manual_order_list')
 
 
 class StoreAPI:
@@ -178,10 +179,10 @@ class StoreAPI:
 if not os.path.exists(json_str):
     print(f"JSON 키 파일이 존재하지 않습니다: {json_str}")
 
-gc = gspread.service_account(json_str)
-doc = gc.open_by_key(sheet_key)
-order_sheets = doc.worksheet('market_store_order_list')
-manual_order_sheets = doc.worksheet('manual_order_list')
+# gc = gspread.service_account(json_str)
+# doc = gc.open_by_key(sheet_key)
+# order_sheets = doc.worksheet('market_store_order_list')
+# manual_order_sheets = doc.worksheet('manual_order_list')
 
 def get_sheet_data(sheet):
     header = sheet.row_values(1)
@@ -363,16 +364,16 @@ async def check_order(orders, shipping_orders, store_api):
     print('-------------------------------')
     return processed_orders
 
-def process_orders(order_sheets, orders):
+def process_orders(shipping_order_sheets, orders):
     try:
-        cell = order_sheets.find('주문상태')
+        cell = shipping_order_sheets.find('주문상태')
         status_col = cell.col
         
         cnt = 0
         result = [False, orders]
         
         for order in orders:
-            data = order_sheets.get_all_records()  # 매 주문마다 최신 데이터 조회
+            data = shipping_order_sheets.get_all_records()  # 매 주문마다 최신 데이터 조회
             market_order_num = order.get('market_order_num')
             
             # 한 번에 하나의 행만 업데이트
@@ -383,7 +384,7 @@ def process_orders(order_sheets, orders):
                     
                     try:
                         # batch_update 대신 개별 업데이트
-                        order_sheets.update_cell(row_num, status_col, '배송완료')
+                        shipping_order_sheets.update_cell(row_num, status_col, '배송완료')
                         print(f"{market_order_num} - {row_num}행 배송완료로 변경 성공")
                         cnt += 1
                         time.sleep(0.5)  # API 요청 제한 고려
@@ -416,7 +417,16 @@ async def main():
     driver = init_driver()
     wait = WebDriverWait(driver, timeout=20)
     alert = Alert(driver)
-    shipping_order_data = get_sheet_data(order_sheets)
+
+    sheet_manager = GoogleSheetManager()
+    # service_worksheets = sheet_manager.get_worksheet('market_service_list')
+    shipping_order_worksheets = sheet_manager.get_worksheet('market_store_order_list')
+    # manual_order_worksheets = sheet_manager.get_worksheet('manual_order_list')
+
+    # service_sheet_data = sheet_manager.get_sheet_data('market_service_list')
+    shipping_order_data = sheet_manager.get_sheet_data('market_store_order_list')
+    # manual_order_sheet_data = sheet_manager.get_sheet_data('manual_order_list')
+
     store_api = StoreAPI(store_api_key)
 
     try:
@@ -431,7 +441,7 @@ async def main():
         print('-------------------------------')
 
         if len(processed_orders) > 0:
-            check_orders = process_orders(order_sheets, processed_orders)
+            check_orders = process_orders(shipping_order_worksheets, processed_orders)
             process_eship(driver, check_orders, shipping_complete_element, alert, wait)
         return processed_orders
     except Exception as e:
