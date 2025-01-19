@@ -77,7 +77,7 @@ async def send_telegram_alert(error_message):
 async def run_with_retry(max_retries=3):
     for attempt in range(max_retries):
         try:
-            return await main()
+            return await main(logger=logger, send_alert=send_telegram_alert)
         except Exception as e:
             logger.error(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
             logger.exception("상세 에러:")

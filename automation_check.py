@@ -491,7 +491,7 @@ def process_eship(driver, orders, order_element, alert, wait):
         alert.accept()
     return
 
-async def main():
+async def main(logger=None, send_alert=None):
 
     try:
         driver = init_driver()
@@ -526,8 +526,18 @@ async def main():
             process_eship(driver, check_orders, shipping_complete_element, alert, wait)
         return processed_orders
     except Exception as e:
-        print(f"Error: {e}")
-        traceback.print_exc()
+        error_msg = f"Automation Check critical error occurred: {e}"
+
+        if logger:
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+        else:
+            print(f"Error: {e}")
+            traceback.print_exc()
+
+        if send_alert:
+            await send_alert(f"{error_msg}\n\n{traceback.format_exc()}")
+            
         return []
     finally:
         print('완료')
