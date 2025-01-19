@@ -9,6 +9,8 @@ from telegram import Bot
 from automation_check import main
 from dotenv import load_dotenv
 
+load_dotenv()
+
 
 class KSTFormatter(logging.Formatter):
     def converter(self, timestamp):
