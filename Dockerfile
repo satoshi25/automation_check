@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN mkdir -p /app/logs && \
+    chown -R chrome:chrome /app/logs
+
 RUN mkdir -p /home/chrome/.cache/selenium \
     && mkdir -p /home/chrome/chrome-data \
     && chown -R chrome:chrome /app \
