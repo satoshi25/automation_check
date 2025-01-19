@@ -57,6 +57,8 @@ def setup_logger(name):
     
     return logger
 
+logger = setup_logger('market_automation_check')
+
 async def send_telegram_alert(error_message):
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -105,7 +107,6 @@ async def scheduler():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     try:
-        logger = setup_logger('market_automation_check')
         logger.info("서비스 시작")
         loop.run_until_complete(scheduler())
     except KeyboardInterrupt:
