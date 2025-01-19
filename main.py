@@ -3,7 +3,7 @@ import logging
 import pytz
 import os
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
 from logging.handlers import TimedRotatingFileHandler
 from telegram import Bot
 from automation_check import main
@@ -38,7 +38,7 @@ def setup_logger(name):
         interval=1,
         backupCount=30,
         encoding='utf-8',
-        atTime=datetime.time(hour=0, minute=0, second=0)
+        atTime=time(hour=0, minute=0, second=0)
     )
     file_handler.suffix = "%Y-%m-%d"
     
