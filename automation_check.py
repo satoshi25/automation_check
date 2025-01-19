@@ -405,7 +405,7 @@ async def check_order(orders, shipping_orders, store_api):
                     store_order_num = filtered_orders.iloc[i]['스토어주문번호']
                     market_order_sheet_num = filtered_orders.iloc[i]['마켓주문번호']
                     response = store_api.get_order_status(store_order_num)
-                    order["market_order_num"] = market_order_sheet_num
+                    # order["market_order_num"] = market_order_sheet_num
                     if response.get('status') == 'Completed':
                         complete_cnt += 1
                         print()
