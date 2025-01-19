@@ -1,10 +1,14 @@
 import asyncio
 import logging
 import pytz
-from datetime import datetime, timezone
 import os
+
+from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
+from telegram import Bot
 from automation_check import main
+from dotenv import load_dotenv
+
 
 class KSTFormatter(logging.Formatter):
     def converter(self, timestamp):
@@ -53,6 +57,19 @@ def setup_logger(name):
     
     return logger
 
+async def send_telegram_alert(error_message):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    try:
+        bot = Bot(token=bot_token)  # telegram.Bot이 아닌 Bot으로 사용
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"🚨 에러 발생!\n{error_message}"
+        )
+    except Exception as e:
+        logger.error(f"Telegram 알림 전송 실패: {e}")
+
 async def run_with_retry(max_retries=3):
     for attempt in range(max_retries):
         try:
@@ -79,8 +96,10 @@ async def scheduler():
             await asyncio.sleep(1800)
             
         except Exception as e:
-            logger.error(f"Critical error occurred: {e}")
+            error_msg = f"Automation Check critical error occurred: {e}"
+            logger.error(error_msg)
             logger.exception("상세 에러:")
+            await send_telegram_alert(error_msg)
             await asyncio.sleep(60)
 
 if __name__ == "__main__":
