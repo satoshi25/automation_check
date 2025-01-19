@@ -7,14 +7,18 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import TimeoutException
+from google.auth.exceptions import TransportError
+from google.oauth2 import service_account
 
 
 import os
 import time
-import gspread
+import gspread 
 import pandas as pd
 import traceback
 import requests
+import json
+import backoff
 
 # .env 파일 로드
 load_dotenv()
@@ -26,10 +30,78 @@ password = os.getenv("PASSWORD")
 login_page = os.getenv("LOGIN_PAGE")
 dashboard_page = os.getenv("DASHBOARD_PAGE")
 shipping_page = os.getenv("SHIPPING_PAGE")
-json_key_path = os.getenv("JSON_KEY")
+json_str = os.getenv("JSON_STR")
 sheet_key = os.getenv("SHEET_KEY")
-store_api_key = os.getenv("STORE_API_KEY").strip('"').strip()
-store_basic_url = os.getenv("STORE_BASIC_URL").strip('"').strip()
+store_api_key = os.getenv("STORE_API_KEY")
+store_basic_url = os.getenv("STORE_BASIC_URL")
+
+
+class GoogleSheetManager:
+    def __init__(self):
+        self.gc = None
+        self.doc = None
+        self.initialize_connection()
+
+    @backoff.on_exception(
+        backoff.expo,
+        (TransportError, requests.exceptions.RequestException),
+        max_tries=5
+    )
+    def initialize_connection(self):
+        try:
+            credentials_info = json.loads(json_str)
+            if 'private_key' in credentials_info:
+                pk = credentials_info['private_key']
+                pk = pk.replace('\\n', '\n')
+                credentials_info['private_key'] = pk
+            print("JSON 파싱 성공")
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_info,
+                scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+            self.gc = gspread.authorize(credentials)
+            self.doc = self.gc.open_by_key(sheet_key)
+        except Exception as e:
+            print(f"연결 초기화 실패: {e}")
+            raise
+
+    def get_worksheet(self, sheet_name):
+        try:
+            return self.doc.worksheet(sheet_name)
+        except Exception as e:
+            print(f"get_worksheet 실패: {e}")
+            self.initialize_connection()  # 연결 재시도
+            return self.doc.worksheet(sheet_name)
+
+    @backoff.on_exception(
+        backoff.expo,
+        (TransportError, requests.exceptions.RequestException),
+        max_tries=5
+    )
+    def get_sheet_data(self, sheet_name):
+        worksheet = self.get_worksheet(sheet_name)
+        try:
+            header = worksheet.row_values(1)
+            data = worksheet.get_all_records()
+
+            if not data:
+                df = pd.DataFrame(columns=header)
+            else:
+                df = pd.DataFrame(data)
+            
+            return df
+        except Exception as e:
+            print(f"시트 데이터 가져오기 실패: {e}")
+            raise
+
+sheet_manager = GoogleSheetManager()
+
+service_sheets = sheet_manager.get_worksheet('market_service_list')
+order_sheets = sheet_manager.get_worksheet('market_store_order_list')
+manual_order_sheets = sheet_manager.get_worksheet('manual_order_list')
+
+service_sheet = sheet_manager.get_sheet_data('market_service_list')
+
 
 class StoreAPI:
     def __init__(self, api_key):
@@ -73,13 +145,7 @@ class StoreAPI:
 
     # 여러 주문의 상태를 한 번에 확인
     def get_multiple_order_status(self, order_ids):
-        """ 
-        Args:
-            order_ids (list): 주문 ID 리스트
-            
-        Returns:
-            dict: 여러 주문의 상태 정보
-        """
+
         params = {
             'key': self.api_key,
             'action': 'status',
@@ -109,10 +175,10 @@ class StoreAPI:
             print(f"잔액 확인 중 오류 발생: {e}")
             raise
 
-if not os.path.exists(json_key_path):
-    print(f"JSON 키 파일이 존재하지 않습니다: {json_key_path}")
+if not os.path.exists(json_str):
+    print(f"JSON 키 파일이 존재하지 않습니다: {json_str}")
 
-gc = gspread.service_account(json_key_path)
+gc = gspread.service_account(json_str)
 doc = gc.open_by_key(sheet_key)
 order_sheets = doc.worksheet('market_store_order_list')
 manual_order_sheets = doc.worksheet('manual_order_list')
@@ -357,8 +423,7 @@ async def main():
         cafe24_login(driver, login_page, wait)
         order_list = scrape_orders(driver, shipping_page, wait)
         orders, shipping_complete_element = order_list
-        # processed_orders = [{'market_order_num': '20250105-0000216-1', 'order_username': '용재\n\n3861898251@k\n[일반회원]\n주문 : 4건\n(총5건)', 'service_num': '501', 'quantity': '100', 'order_link': 'gpl_lesson_official', 'order_edit_link': -1, 'order_time': '2025-01-05 20:14:18\n(2025-01-05 20:17:10)', 'check_element': '<selenium.webdriver.remote.webelement.WebElement (session="3555437cf1ad124aa13d34bb0ea77f0a", element="f.73AC566FA7743A50BA2144D195C33346.d.0B482F9F6996D3A3930BC0F62C8B5F41.e.625")>', 'store_order_num': {'order': 214952}, 'validate_url': 1}, {'market_order_num': '20250105-0000201-1', 'order_username': '용재\n\n3861898251@k\n[일반회원]\n주문 : 4건\n(총5건)', 'service_num': '32', 'quantity': '1000', 'order_link': 'gpl_lesson_official', 'order_edit_link': 'https://www.instagram.com/p/DEcK4YPpRJL/', 'order_time': '2025-01-05 20:10:25\n(2025-01-05 20:11:41)', 'check_element': '<selenium.webdriver.remote.webelement.WebElement (session="3555437cf1ad124aa13d34bb0ea77f0a", element="f.73AC566FA7743A50BA2144D195C33346.d.0B482F9F6996D3A3930BC0F62C8B5F41.e.186")>', 'store_order_num': {'order': 214953}, 'validate_url': 1}, {'market_order_num': '20250105-0000195-1', 'order_username': '현재현\n\nwogus4802\n[일반회원]\n(총1건)', 'service_num': '441', 'quantity': '100', 'order_link': 'jae_07hyeon', 'order_edit_link': -1, 'order_time': '2025-01-05 20:10:12\n(2025-01-05 20:11:55)', 'check_element': '<selenium.webdriver.remote.webelement.WebElement (session="3555437cf1ad124aa13d34bb0ea77f0a", element="f.73AC566FA7743A50BA2144D195C33346.d.0B482F9F6996D3A3930BC0F62C8B5F41.e.673")>', 'store_order_num': {'order': 214954}, 'validate_url': 1}, {'market_order_num': '20250105-0000172-1', 'order_username': '용재\n\n3861898251@k\n[일반회원]\n주문 : 4건\n(총5건)', 'service_num': '12', 'quantity': '200', 'order_link': 'gpl_lesson_official', 'order_edit_link': 'https://www.instagram.com/p/DEcK4YPpRJL/', 'order_time': '2025-01-05 20:07:48\n(2025-01-05 20:11:41)', 'check_element': '<selenium.webdriver.remote.webelement.WebElement (session="3555437cf1ad124aa13d34bb0ea77f0a", element="f.73AC566FA7743A50BA2144D195C33346.d.0B482F9F6996D3A3930BC0F62C8B5F41.e.698")>', 'store_order_num': {'order': 214955}, 'validate_url': 1}, {'market_order_num': '20250105-0000162-1', 'order_username': '용재\n\n3861898251@k\n[일반회원]\n주문 : 4건\n(총5건)', 'service_num': '441', 'quantity': '600', 'order_link': '_01_6__', 'order_edit_link': -1, 'order_time': '2025-01-05 20:00:02\n(2025-01-05 20:05:50)', 'check_element': '<selenium.webdriver.remote.webelement.WebElement (session="3555437cf1ad124aa13d34bb0ea77f0a", element="f.73AC566FA7743A50BA2144D195C33346.d.0B482F9F6996D3A3930BC0F62C8B5F41.e.723")>', 'store_order_num': {'order': 214956}, 'validate_url': 1}]
-        # orders = [{'market_order_num': '20250105-0000037-1', 'order_username': '이아인\n\nain0117\n[일반회원]\n(총1건)', 'service_num': '441', 'quantity': '100', 'order_link': '@ax._inz', 'order_edit_link': -1, 'order_time': '2025-01-05 01:41:23\n(2025-01-05 01:41:23)', 'check_element': '<selenium.webdriver.remote.webelement.WebElement (session="aec1fe2f1114c204a7f38ef7f63781a3", element="f.5A6331A0EC134EFD7F8B5D5C3632D259.d.06E3BCDD94CF186826E1FCE33451DD04.e.641")>', 'store_order_num': -1, 'validate_url': -1}]
+
         processed_orders = await check_order(orders, shipping_order_data, store_api)
 
         print('-------------------------------')
