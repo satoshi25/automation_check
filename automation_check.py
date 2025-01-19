@@ -492,22 +492,23 @@ def process_eship(driver, orders, order_element, alert, wait):
     return
 
 async def main():
-    driver = init_driver()
-    wait = WebDriverWait(driver, timeout=20)
-    alert = Alert(driver)
-
-    sheet_manager = GoogleSheetManager()
-    # service_worksheets = sheet_manager.get_worksheet('market_service_list')
-    shipping_order_worksheets = sheet_manager.get_worksheet('market_store_order_list')
-    manual_order_worksheets = sheet_manager.get_worksheet('manual_order_list')
-
-    # service_sheet_data = sheet_manager.get_sheet_data('market_service_list')
-    shipping_order_data = sheet_manager.get_sheet_data('market_store_order_list')
-    manual_order_sheet_data = sheet_manager.get_sheet_data('manual_order_list')
-
-    store_api = StoreAPI(store_api_key)
 
     try:
+        driver = init_driver()
+        wait = WebDriverWait(driver, timeout=20)
+        alert = Alert(driver)
+
+        sheet_manager = GoogleSheetManager()
+        # service_worksheets = sheet_manager.get_worksheet('market_service_list')
+        shipping_order_worksheets = sheet_manager.get_worksheet('market_store_order_list')
+        manual_order_worksheets = sheet_manager.get_worksheet('manual_order_list')
+
+        # service_sheet_data = sheet_manager.get_sheet_data('market_service_list')
+        shipping_order_data = sheet_manager.get_sheet_data('market_store_order_list')
+        # manual_order_sheet_data = sheet_manager.get_sheet_data('manual_order_list')
+
+        store_api = StoreAPI(store_api_key)
+
         cafe24_login(driver, login_page, wait)
         order_list = scrape_orders(driver, shipping_page, wait)
         orders, shipping_complete_element = order_list
