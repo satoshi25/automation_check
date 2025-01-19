@@ -177,8 +177,8 @@ class StoreAPI:
             print(f"잔액 확인 중 오류 발생: {e}")
             raise
 
-if not os.path.exists(json_str):
-    print(f"JSON 키 파일이 존재하지 않습니다: {json_str}")
+# if not os.path.exists(json_str):
+#     print(f"JSON 키 파일이 존재하지 않습니다: {json_str}")
 
 # gc = gspread.service_account(json_str)
 # doc = gc.open_by_key(sheet_key)
