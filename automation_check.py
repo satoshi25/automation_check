@@ -196,28 +196,16 @@ def get_sheet_data(sheet):
     
     return df
 
-def add_order_sheet(df, order):
-    print()
-    # store_order_num = order.get('store_order_num', '').get('order')
+def process_manual_order(sheet, orders):
     try:
-        row_data = [
-            str(order.get('market_order_num', '')),
-            str(order.get('store_order_num', '').get('order')),
-            str(order.get('order_username', '')),
-            str(order.get('service_num', '')),
-            str(order.get('order_link', '')),
-            str(order.get('order_edit_link', '')),
-            str(order.get('quantity', '')),
-            str(order.get('service_name', '')),
-            str(order.get('order_time', '')),
-            "배송중",
-        ]
-        df.append_row(row_data)
-        print(f"주문 정보가 시트에 추가되었습니다: {row_data}")
-        return order
-    
+        for order in orders:
+            add_manual_order_sheet(sheet, order)
+
+        for order in orders:
+            alert_manual_orders()
+
     except Exception as e:
-        print(f"시트 추가 중 오류 발생: {str(e)}")
+        print(f"수동필요 주문 처리 중 오류 발생: {str(e)}")
         traceback.print_exc()
 
 def add_manual_order_sheet(sheet, order):
@@ -234,7 +222,7 @@ def add_manual_order_sheet(sheet, order):
             str(order.get('service_name', '')),
             str(order.get('order_time', '')),
             "처리필요",
-            str(order.get('note', '')),
+            str(order.get('note', '진행중인 주문에 문제가 있습니다.')),
         ]
 
         if len(row_data) != 11:  # 컬럼 수와 일치하는지 확인
