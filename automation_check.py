@@ -34,6 +34,7 @@ json_str = os.getenv("JSON_STR")
 sheet_key = os.getenv("SHEET_KEY")
 store_api_key = os.getenv("STORE_API_KEY")
 store_basic_url = os.getenv("STORE_BASIC_URL")
+make_hook_url = os.getenv("MAKE_HOOK_URL")
 
 
 class GoogleSheetManager:
@@ -196,16 +197,19 @@ def get_sheet_data(sheet):
     
     return df
 
-def process_manual_order(sheet, orders):
+def process_manual_order(sheet, orders, hook_url, sheet_manager):
     try:
         for order in orders:
             add_manual_order_sheet(sheet, order)
-
-        for order in orders:
-            alert_manual_orders()
-
     except Exception as e:
-        print(f"수동필요 주문 처리 중 오류 발생: {str(e)}")
+        print(f"수동필요 주문 시트 추가 처리 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+
+    try:
+        for order in orders:
+            alert_manual_orders(hook_url, sheet_manager, orders)
+    except Exception as e:
+        print(f"수동필요 주문 알림 처리 중 오류 발생: {str(e)}")
         traceback.print_exc()
 
 def add_manual_order_sheet(sheet, order):
@@ -260,7 +264,7 @@ def alert_manual_orders(hook_url, sheet_manager, orders):
                 "user_id": user_id,
                 "username": username,
                 "order_time": order_time,
-                "order_service": order_service,
+                "order_service": f"{order_service}, 주문진행중 문제가 있습니다.",
             }
 
             response = requests.post(url=hook_url, json=payload)
@@ -515,7 +519,7 @@ async def main():
         print('완료된 주문목록', processed_orders)
         print('-------------------------------')
         if len(manual_orders) > 0:
-            process_manual_order(manual_order_worksheets, manual_orders)
+            process_manual_order(manual_order_worksheets, manual_orders, make_hook_url, sheet_manager)
         if len(processed_orders) > 0:
             check_orders = process_orders(shipping_order_worksheets, processed_orders)
             process_eship(driver, check_orders, shipping_complete_element, alert, wait)
