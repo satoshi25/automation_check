@@ -413,7 +413,7 @@ async def check_order(orders, shipping_orders, store_api):
                         print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
                         print()
                     elif response.get('status') == 'Partial' or response.get('status') == 'Canceled':
-                        manual_order = shipping_orders[shipping_orders['마켓주문번호'] == order['market_order_num']]
+                        manual_order = shipping_orders[shipping_orders['마켓주문번호'] == market_order_sheet_num]
                         manual_process_orders.append(manual_order)
                         print()
                         print('수동처리가 필요한 주문')
