@@ -214,26 +214,21 @@ def process_manual_order(sheet, orders, hook_url, sheet_manager):
 
 def add_manual_order_sheet(sheet, order):
     print('manual_order 입력')
-    store_order_num = order.get('store_order_num')
     print('주문', order), 
-    print('주문번호', store_order_num)
-    
-    if 'order' in store_order_num:
-        store_order_num = store_order_num.get('order')
 
     try:
         row_data = [
-            str(order.get('market_order_num', '')),
-            str(order.get('store_order_num', '')),
-            str(order.get('order_username', '')),
-            str(order.get('service_num', '')),
-            str(order.get('order_link', '')),
-            str(order.get('order_edit_link', '')),
-            str(order.get('quantity', '')),
-            str(order.get('service_name', '')),
-            str(order.get('order_time', '')),
+            str(order[0]),
+            str(order[1]),
+            str(order[2]),
+            str(order[3]),
+            str(order[4]),
+            str(order[5]),
+            str(order[6]),
+            str(order[7]),
+            str(order[8]),
             "처리필요",
-            str(order.get('note', '진행중인 주문에 문제가 있습니다.')),
+            f"주문이 {order[-1]} 상태로 처리가 필요합니다.",
         ]
 
         if len(row_data) != 11:  # 컬럼 수와 일치하는지 확인
@@ -253,17 +248,13 @@ def alert_manual_orders(hook_url, sheet_manager, orders):
     df = sheet_manager.get_sheet_data('manual_order_list')
 
     for order in orders:
-        order_num = order.get("market_order_num")
-        user_info = order.get('order_username')
-        if order.get("order_username"):
-            user_info = order.get("order_username").split('\n')
-            username = user_info[0]
-            user_id = user_info[2]
-        else:
-            username = ''
-            user_id = ''
-        order_time = order.get("order_time").split('\n')[1].replace("(", '').replace(")", '')
-        order_service = order.get("service_name")
+        order_num = order[0]
+        user_info = order[2].split('\n')
+        username = user_info[0]
+        user_id = user_info[2]
+        order_time = order[8].split('\n')[1].replace("(", '').replace(")", '')
+        order_service = order[7]
+        status = order[-1]
 
         filtered_manual = df[
             (df['처리상태'] == '처리필요') &  
@@ -276,7 +267,7 @@ def alert_manual_orders(hook_url, sheet_manager, orders):
                 "user_id": user_id,
                 "username": username,
                 "order_time": order_time,
-                "order_service": f"{order_service}, 주문진행중 문제가 있습니다.",
+                "order_service": f"{order_service} 주문 {status} 로 수동처리가 필요합니다.",
             }
 
             response = requests.post(url=hook_url, json=payload)
@@ -425,7 +416,10 @@ async def check_order(orders, shipping_orders, store_api):
                         print(f"{store_order_num} - {market_order_sheet_num}", response.get("status"))
                         print()
                     elif response.get('status') == 'Partial' or response.get('status') == 'Canceled':
-                        manual_order = shipping_orders[shipping_orders['마켓주문번호'] == market_order_sheet_num]
+                        df_manual_order = shipping_orders[shipping_orders['마켓주문번호'] == market_order_sheet_num]
+                        manual_order = df_manual_order.values.tolist()[0]
+                        manual_order.append(response.get('status'))
+                        print('manual_order', manual_order)
                         manual_process_orders.append(manual_order)
                         print()
                         print('수동처리가 필요한 주문')
