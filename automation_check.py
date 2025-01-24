@@ -217,7 +217,7 @@ def add_manual_order_sheet(sheet, order):
     try:
         row_data = [
             str(order.get('market_order_num', '')),
-            str(order.get('store_order_num', '').get('order')),
+            str(order.get('store_order_num', '')),
             str(order.get('order_username', '')),
             str(order.get('service_num', '')),
             str(order.get('order_link', '')),
