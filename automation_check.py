@@ -214,6 +214,13 @@ def process_manual_order(sheet, orders, hook_url, sheet_manager):
 
 def add_manual_order_sheet(sheet, order):
     print('manual_order 입력')
+    store_order_num = order.get('store_order_num')
+    print('주문', order), 
+    print('주문번호', store_order_num)
+    
+    if 'order' in store_order_num:
+        store_order_num = store_order_num.get('order')
+
     try:
         row_data = [
             str(order.get('market_order_num', '')),
@@ -247,9 +254,14 @@ def alert_manual_orders(hook_url, sheet_manager, orders):
 
     for order in orders:
         order_num = order.get("market_order_num")
-        user_info = order.get("order_username").split('\n')
-        username = user_info[0]
-        user_id = user_info[2]
+        user_info = order.get('order_username')
+        if order.get("order_username"):
+            user_info = order.get("order_username").split('\n')
+            username = user_info[0]
+            user_id = user_info[2]
+        else:
+            username = ''
+            user_id = ''
         order_time = order.get("order_time").split('\n')[1].replace("(", '').replace(")", '')
         order_service = order.get("service_name")
 
